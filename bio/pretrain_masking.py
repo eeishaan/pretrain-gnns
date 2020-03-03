@@ -15,7 +15,7 @@ from model import GNN, GNN_graphpred
 
 import pandas as pd
 
-from util import MaskEdge
+from util import MaskEdge, load_model_for_pruning
 
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 
@@ -100,7 +100,10 @@ def main():
                         help="Seed for splitting dataset.")
     parser.add_argument('--num_workers', type=int, default=8,
                         help='number of workers for dataset loading')
-
+    parser.add_argument('--prune_mask', type=str, default=None,
+                        help='Prune mask file path to freeze weight of the loaded model. This will also half the number of epochs.')
+    parser.add_argument('--saved_model', type=str, default=None,
+                        help='File path of the model that needs to be retrained after pruning.')
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -125,6 +128,16 @@ def main():
     # set up models, one for pre-training and one for context embeddings
     model = GNN(args.num_layer, args.emb_dim, JK=args.JK,
                 drop_ratio=args.dropout_ratio, gnn_type=args.gnn_type).to(device)
+
+    # load the saved model
+    if args.saved_model:
+        if not args.prune_mask:
+            raise Exception(
+                'Gotta specify the prune mask for re-trainig saved model!!')
+        load_model_for_pruning(model, args.saved_model, args.prune_mask)
+        # in line with packnet reduce the re-training epochs
+        args.epochs /= 2
+
     # Linear layer for classifying different edge types
     linear_pred_edges = torch.nn.Linear(args.emb_dim, 7).to(device)
 
