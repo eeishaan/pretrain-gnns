@@ -4,14 +4,16 @@ import numpy as np
 import networkx as nx
 from loader import BioDataset, graph_data_obj_to_nx, nx_to_graph_data_obj
 
+
 def combine_dataset(dataset1, dataset2):
     data_list = [data for data in dataset1]
     data_list.extend([data for data in dataset2])
     root_supervised = 'dataset/supervised'
-    dataset = BioDataset(root_supervised, data_type='supervised', empty = True)
+    dataset = BioDataset(root_supervised, data_type='supervised', empty=True)
 
     dataset.data, dataset.slices = dataset.collate(data_list)
     return dataset
+
 
 class NegativeEdge:
     def __init__(self):
@@ -24,14 +26,15 @@ class NegativeEdge:
         num_nodes = data.num_nodes
         num_edges = data.num_edges
 
-        edge_set = set([str(data.edge_index[0,i].cpu().item()) + "," + str(data.edge_index[1,i].cpu().item()) for i in range(data.edge_index.shape[1])])
+        edge_set = set([str(data.edge_index[0, i].cpu().item()) + "," + str(
+            data.edge_index[1, i].cpu().item()) for i in range(data.edge_index.shape[1])])
 
-        redandunt_sample = torch.randint(0, num_nodes, (2,5*num_edges))
+        redandunt_sample = torch.randint(0, num_nodes, (2, 5*num_edges))
         sampled_ind = []
         sampled_edge_set = set([])
         for i in range(5*num_edges):
-            node1 = redandunt_sample[0,i].cpu().item()
-            node2 = redandunt_sample[1,i].cpu().item()
+            node1 = redandunt_sample[0, i].cpu().item()
+            node2 = redandunt_sample[1, i].cpu().item()
             edge_str = str(node1) + "," + str(node2)
             if not edge_str in edge_set and not edge_str in sampled_edge_set and not node1 == node2:
                 sampled_edge_set.add(edge_str)
@@ -39,9 +42,10 @@ class NegativeEdge:
             if len(sampled_ind) == num_edges/2:
                 break
 
-        data.negative_edge_index = redandunt_sample[:,sampled_ind]
-        
+        data.negative_edge_index = redandunt_sample[:, sampled_ind]
+
         return data
+
 
 class MaskEdge:
     def __init__(self, mask_rate):
@@ -98,8 +102,8 @@ class MaskEdge:
                                                          masked_edge_indices]
         for idx in all_masked_edge_indices:
             data.edge_attr[idx] = torch.tensor(np.array([0, 0, 0, 0, 0,
-                                                             0, 0, 0, 1]),
-                                                      dtype=torch.float)
+                                                         0, 0, 0, 1]),
+                                               dtype=torch.float)
 
         return data
         # # debugging
@@ -135,7 +139,6 @@ class ExtractSubstructureContextPair:
         self.center = center
         self.l1 = l1
 
-    
         if self.l1 == 0:
             self.l1 = -1
 
@@ -171,7 +174,6 @@ class ExtractSubstructureContextPair:
         data.edge_index_substruct = data.edge_index
         data.center_substruct_idx = data.center_node_idx
 
-
         # Get context that is between l1 and the max diameter of the PPI graph
         l1_node_idxes = nx.single_source_shortest_path_length(G, root_idx,
                                                               self.l1).keys()
@@ -206,7 +208,8 @@ class ExtractSubstructureContextPair:
 
     def __repr__(self):
         return '{}(l1={}, center={})'.format(self.__class__.__name__,
-                                              self.l1, self.center)
+                                             self.l1, self.center)
+
 
 if __name__ == "__main__":
     root_supervised = 'dataset/supervised'
