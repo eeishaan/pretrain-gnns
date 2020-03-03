@@ -211,6 +211,38 @@ class ExtractSubstructureContextPair:
                                              self.l1, self.center)
 
 
+def load_model_for_pruning(model, model_path, mask_path):
+    # load model
+    model.load_state_dict(torch.load(
+        model_path, map_location=lambda storage, loc: storage))
+
+    # load mask object
+    mask_obj = torch.load(mask_path, map_location=lambda storage, loc: storage)
+
+    with torch.no_grad():
+        def _process_children(obj, mask):
+            for i, child in enumerate(obj.children()):
+                if isinstance(mask[i], list) and len(mask[i]) == 0:
+                    continue
+                elif isinstance(mask[i], torch.Tensor):
+                    relevant_mask = (~mask[i]).float()
+                    relevant_mask.requires_grad = False
+
+                    def _hook(grad, relevant_mask=relevant_mask):
+                        new_grad = grad * relevant_mask
+                        return new_grad
+
+                    # zero out weights so they don't contribute to output
+                    child.weight *= relevant_mask
+                    # zero out gradients at every backward() call so that
+                    # weights don't get updated
+                    child.weight.register_hook(_hook)
+                    continue
+                _process_children(child, mask[i])
+
+        _process_children(model, mask_obj)
+
+
 if __name__ == "__main__":
     root_supervised = 'dataset/supervised'
     thresholds = [266, 1, 777, 652, 300, 900, 670]
