@@ -134,7 +134,8 @@ def main():
         if not args.prune_mask:
             raise Exception(
                 'Gotta specify the prune mask for re-trainig saved model!!')
-        load_model_for_pruning(model, args.saved_model, args.prune_mask)
+        load_model_for_pruning(model, args.saved_model,
+                               args.prune_mask, device)
         # in line with packnet reduce the re-training epochs
         args.epochs /= 2
 
