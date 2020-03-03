@@ -211,13 +211,13 @@ class ExtractSubstructureContextPair:
                                              self.l1, self.center)
 
 
-def load_model_for_pruning(model, model_path, mask_path):
+def load_model_for_pruning(model, model_path, mask_path, device):
     # load model
     model.load_state_dict(torch.load(
         model_path, map_location=lambda storage, loc: storage))
 
     # load mask object
-    mask_obj = torch.load(mask_path, map_location=lambda storage, loc: storage)
+    mask_obj = torch.load(mask_path, map_location=device)
 
     with torch.no_grad():
         def _process_children(obj, mask):
