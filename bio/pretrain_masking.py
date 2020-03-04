@@ -137,7 +137,7 @@ def main():
         load_model_for_pruning(model, args.saved_model,
                                args.prune_mask, device)
         # in line with packnet reduce the re-training epochs
-        args.epochs /= 2
+        args.epochs //= 2
 
     # Linear layer for classifying different edge types
     linear_pred_edges = torch.nn.Linear(args.emb_dim, 7).to(device)
