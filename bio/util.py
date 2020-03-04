@@ -211,7 +211,7 @@ class ExtractSubstructureContextPair:
                                              self.l1, self.center)
 
 
-def load_model_for_pruning(model, model_path, mask_path, device):
+def load_model_for_pruning(model, model_path, mask_path, device, invert=True):
     # load model
     model.load_state_dict(torch.load(
         model_path, map_location=lambda storage, loc: storage))
@@ -225,7 +225,8 @@ def load_model_for_pruning(model, model_path, mask_path, device):
                 if isinstance(mask[i], list) and len(mask[i]) == 0:
                     continue
                 elif isinstance(mask[i], torch.Tensor):
-                    relevant_mask = (~mask[i]).float()
+                    relevant_mask = ~mask[i] if invert else mask
+                    relevant_mask = relevant_mask.float()
                     relevant_mask.requires_grad = False
 
                     def _hook(grad, relevant_mask=relevant_mask):
