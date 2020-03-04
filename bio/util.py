@@ -225,7 +225,7 @@ def load_model_for_pruning(model, model_path, mask_path, device, invert=True):
                 if isinstance(mask[i], list) and len(mask[i]) == 0:
                     continue
                 elif isinstance(mask[i], torch.Tensor):
-                    relevant_mask = ~mask[i] if invert else mask
+                    relevant_mask = ~mask[i] if invert else mask[i]
                     relevant_mask = relevant_mask.float()
                     relevant_mask.requires_grad = False
 
