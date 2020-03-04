@@ -118,7 +118,7 @@ def main():
 
     # set up model
     model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK=args.JK,
-                          drop_ratio=args.dropout_ratio, graph_pooling=args.graph_pooling, gnn_type=args.gnn_type)
+                          drop_ratio=args.dropout_ratio, graph_pooling=args.graph_pooling, gnn_type=args.gnn_type).to(device)
     if not args.input_model_file == "":
         model_file = args.input_model_file + ".pth"
         if args.prune_mask:
@@ -126,8 +126,6 @@ def main():
                                    args.prune_mask, device, invert=False)
         else:
             model.from_pretrained(model_file)
-
-    model.to(device)
 
     # set up optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr,
