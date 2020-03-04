@@ -13,7 +13,7 @@ from tqdm import tqdm
 from loader import BioDataset
 from model import GNN, GNN_graphpred
 from splitters import random_split, species_split
-from util import combine_dataset
+from util import combine_dataset, load_model_for_pruning
 
 criterion = nn.BCEWithLogitsLoss()
 
@@ -73,6 +73,8 @@ def main():
                         help="Seed for splitting dataset.")
     parser.add_argument('--split', type=str, default="species",
                         help='Random or species split')
+    parser.add_argument('--prune_mask', type=str, default=None,
+                        help='Prune mask file path to freeze weight of the loaded model.')
 
     args = parser.parse_args()
 
@@ -118,7 +120,12 @@ def main():
     model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK=args.JK,
                           drop_ratio=args.dropout_ratio, graph_pooling=args.graph_pooling, gnn_type=args.gnn_type)
     if not args.input_model_file == "":
-        model.from_pretrained(args.input_model_file + ".pth")
+        model_file = args.input_model_file + ".pth"
+        if args.prune_mask:
+            load_model_for_pruning(model.gnn, model_file,
+                                   args.prune_mask, device, invert=False)
+        else:
+            model.from_pretrained(model_file)
 
     model.to(device)
 
