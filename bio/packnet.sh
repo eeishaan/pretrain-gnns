@@ -7,9 +7,10 @@
 prune_ratio="0.5"
 split=species
 
-python packnet.py model_gin/masking.pth tmp/masking_$prune_ratio.mask
+python packnet.py model_gin/masking.pth tmp/masking_$prune_ratio.mask $prune_ratio
 
 python pretrain_masking.py \
+    --num_workers 4 \
     --saved_model model_gin/masking.pth \
     --prune_mask tmp/masking_$prune_ratio.mask \
     --model_file tmp/masking_$prune_ratio &> logs/masking_$prune_ratio.txt
