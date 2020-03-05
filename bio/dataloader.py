@@ -38,8 +38,11 @@ class DataLoaderMasking(torch.utils.data.DataLoader):
             dataset,
             batch_size,
             shuffle,
-            collate_fn=lambda data_list: BatchMasking.from_data_list(data_list),
+            collate_fn=self._collate,
             **kwargs)
+
+    def _collate(self, data_list):
+        return BatchMasking.from_data_list(data_list)
 
 
 class DataLoaderAE(torch.utils.data.DataLoader):
