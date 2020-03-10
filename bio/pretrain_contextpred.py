@@ -164,7 +164,7 @@ def main():
         if not args.prune_mask:
             raise Exception(
                 'Gotta specify the prune mask for re-training saved model!!')
-        load_model_for_pruning(model_substruct, args.saved_model, args.prune_mask, device)
+        load_model_for_pruning(model_substruct, args.saved_model, args.prune_mask, device, invert=False)
 
     model_context = GNN(3, args.emb_dim, JK = args.JK, drop_ratio = args.dropout_ratio, gnn_type = args.gnn_type).to(device)
 
