@@ -15,7 +15,7 @@ from sklearn.metrics import roc_auc_score
 
 import pandas as pd
 
-from util import ExtractSubstructureContextPair
+from util import ExtractSubstructureContextPair, load_model_for_pruning
 
 from dataloader import DataLoaderSubstructContext
 
@@ -130,6 +130,11 @@ def main():
     parser.add_argument('--mode', type=str, default = "cbow", help = "cbow or skipgram")
     parser.add_argument('--model_file', type=str, default = '', help='filename to output the model')
     parser.add_argument('--num_workers', type=int, default = 4, help='number of workers for dataset loading')
+    parser.add_argument('--prune_mask', type=str, default=None,
+                        help='Prune mask file path to freeze weight of the loaded model. This will also half the number of epochs.')
+    parser.add_argument('--saved_model', type=str, default=None,
+                        help='File path of the model that needs to be retrained after pruning.')
+    
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -153,6 +158,14 @@ def main():
 
     #set up models, one for pre-training and one for context embeddings
     model_substruct = GNN(args.num_layer, args.emb_dim, JK = args.JK, drop_ratio = args.dropout_ratio, gnn_type = args.gnn_type).to(device)
+
+    # load the saved model
+    if args.saved_model:
+        if not args.prune_mask:
+            raise Exception(
+                'Gotta specify the prune mask for re-training saved model!!')
+        load_model_for_pruning(model_substruct, args.saved_model, args.prune_mask, device)
+
     model_context = GNN(3, args.emb_dim, JK = args.JK, drop_ratio = args.dropout_ratio, gnn_type = args.gnn_type).to(device)
 
     #set up optimizer for the two GNNs
