@@ -1,8 +1,8 @@
 # - load the saved weights
-# - Prune weights and save the pruned model
-# - Load the pruned model and retrain the model with half number of epochs
-# - Freeze the trained weights, batchnorm and biases
-# - Proceed normally with
+# - Prune weights and save the pruned masking model
+# - Load the pruned model, train the pruned weights on contextpred task, saved the 2 task model
+# - Load the model and train supervised model, save it
+# - Finetune the supervised model on downstream task
 
 prune_ratio="0.5"
 split=species
