@@ -60,38 +60,42 @@ def finetune_linear(model, linear, optimizer, criterion, train_loader, valid_loa
         loss_accum += float(loss.cpu().item())
 
         #validation iterations
-        if step % valid_period == 0:
-            linear.eval()
-            valid_acc_accum = 0
-            valid_loss_accum = 0
+        with torch.no_grad():
+            if step % valid_period == 0:
+                linear.eval()
+                valid_acc_accum = 0
+                valid_loss_accum = 0
 
-            for _ in range(valid_steps):
-                try:
-                    valid_batch = next(valid_iterator)
-                except StopIteration:
-                    valid_iterator = iter(valid_loader)
-                    valid_batch = next(valid_iterator)
+                for _ in range(valid_steps):
+                    try:
+                        valid_batch = next(valid_iterator)
+                    except StopIteration:
+                        valid_iterator = iter(valid_loader)
+                        valid_batch = next(valid_iterator)
+                        print("Valid reset")
 
-                node_rep = model(valid_batch.x, valid_batch.edge_index, valid_batch.edge_attr)
+                    valid_batch = valid_batch.to(device)
 
-                ### predict the edge types.
-                masked_edge_index = valid_batch.edge_index[:, valid_batch.masked_edge_idx]
-                edge_rep = node_rep[masked_edge_index[0]] + node_rep[masked_edge_index[1]]
-                pred_edge = linear(edge_rep)
+                    node_rep = model(valid_batch.x, valid_batch.edge_index, valid_batch.edge_attr)
 
-                #converting the binary classification to multiclass classification
-                edge_label = torch.argmax(valid_batch.mask_edge_label, dim = 1)
+                    ### predict the edge types.
+                    masked_edge_index = valid_batch.edge_index[:, valid_batch.masked_edge_idx]
+                    edge_rep = node_rep[masked_edge_index[0]] + node_rep[masked_edge_index[1]]
+                    pred_edge = linear(edge_rep)
 
-                valid_acc_edge = compute_accuracy(pred_edge, edge_label)
-                valid_acc_accum += valid_acc_edge
+                    #converting the binary classification to multiclass classification
+                    edge_label = torch.argmax(valid_batch.mask_edge_label, dim = 1)
 
-                valid_loss = criterion(pred_edge, edge_label)
-                valid_loss_accum += float(valid_loss.cpu().item())
+                    valid_acc_edge = compute_accuracy(pred_edge, edge_label)
+                    valid_acc_accum += valid_acc_edge
+
+                    valid_loss = criterion(pred_edge, edge_label)
+                    valid_loss_accum += float(valid_loss.cpu().item())
 
 
-            if best_loss > valid_loss_accum:
-                best_loss = valid_loss_accum
-                torch.save(linear.state_dict(), savepath)
+                if best_loss > valid_loss_accum:
+                    best_loss = valid_loss_accum
+                    torch.save(linear.state_dict(), savepath)
 
     return loss_accum/(step + 1), acc_accum/(step + 1)
 
@@ -183,6 +187,8 @@ if __name__ == "__main__":
     trainval_dataset, test_dataset = species_split(dataset,
                                                    trainval_list,
                                                    test_list)
+
+    del dataset
     
     # Load the model weights
     model = GNN(args.num_layer,
@@ -207,6 +213,8 @@ if __name__ == "__main__":
                                                    frac_train=0.85,
                                                    frac_valid=0.15,
                                                    frac_test=0)
+
+        del trainval_dataset
 
         train_loader = DataLoaderMasking(train_dataset,
                                         batch_size=args.batch_size,
