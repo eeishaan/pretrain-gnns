@@ -1,4 +1,3 @@
 bio/dataset/*
 .vscode
 __pycache__
-bio/checkpoints/*
