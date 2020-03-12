@@ -1,4 +1,4 @@
-DEBUG = True
+DEBUG = False
 
 import os
 import argparse
@@ -72,7 +72,6 @@ def finetune_linear(model, linear, optimizer, criterion, train_loader, valid_loa
                     except StopIteration:
                         valid_iterator = iter(valid_loader)
                         valid_batch = next(valid_iterator)
-                        print("Valid reset")
 
                     valid_batch = valid_batch.to(device)
 
