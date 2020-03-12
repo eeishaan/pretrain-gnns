@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch implementation of pre-training of graph neural networks')
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=256,
+    parser.add_argument('--batch_size', type=int, default=100,
                         help='input batch size for training (default: 256)')
     parser.add_argument('--epochs', type=int, default=100,
                         help='number of epochs to train (default: 100)')
@@ -153,9 +153,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', type=int, default = 8, help='number of workers for dataset loading')
     parser.add_argument('--weights', type=str, default="model_gin/masking.pth",
                         help='path to weights checkpoint')
-    parser.add_argument('--savedir', type=str, default=None,
+    parser.add_argument('--savepath', type=str, default=None,
                         help='path where the linear checkpoint is saved')
-    parser.add_argument('--linear_path', type=str, default=None,
+    parser.add_argument('--linear_weights', type=str, default=None,
                         help="if specified, evaluates accuracy of models instead of finetuning")
     args = parser.parse_args()
 
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     # Get the last layer, either through training or loading a checkpoint
     linear_pred_edges = torch.nn.Linear(args.emb_dim, 7).to(device)
 
-    if args.linear_path is None:
+    if args.linear_weights is None:
         print("Finetuning last layer using: {}".format(args.weights))
         # Train:val is randomly split 0.85:0.15
         train_dataset, valid_dataset, _ = random_split(trainval_dataset,
@@ -230,14 +230,6 @@ if __name__ == "__main__":
                                                 weight_decay=args.decay)
     
         criterion = nn.CrossEntropyLoss()
-    
-        if args.savedir is None:
-            savedir = os.path.join("checkpoints/linear", datetime.now().strftime('%m%d_%H%M%S'))
-
-        if os.path.exists(savedir) is False:
-            os.mkdir(savedir)
-    
-        savepath = os.path.join(savedir, "best_masking_loss.pth")
         
         loss, acc = finetune_linear(model,
                                     linear_pred_edges,
@@ -246,22 +238,22 @@ if __name__ == "__main__":
                                     train_loader,
                                     valid_loader,
                                     device,
-                                    savepath)
+                                    args.savepath)
 
         print("Final loss:", loss)
     
-    elif os.path.exists(args.linear_path) is False:
+    elif os.path.exists(args.linear_weights) is False:
         print("Incorrect linear checkpoint path")
         acc = "invalid"
     
     else:
-        print("Evaluating model: {} \nUsing last layer: {}".format(args.weights, args.linear_path))
+        print("Evaluating model: {} \nUsing last layer: {}".format(args.weights, args.linear_weights))
         test_loader = DataLoaderMasking(test_dataset,
                                     batch_size=args.batch_size,
                                     shuffle=False,
                                     num_workers=args.num_workers)
 
-        linear_pred_edges.load_state_dict(torch.load(args.linear_path, map_location=device))
+        linear_pred_edges.load_state_dict(torch.load(args.linear_weights, map_location=device))
         acc = eval_accuracy(model,
                             linear_pred_edges,
                             test_loader,
