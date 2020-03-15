@@ -233,8 +233,10 @@ def load_model_for_pruning(model, model_path, mask_path, device, invert=True):
                         new_grad = grad * relevant_mask
                         return new_grad
 
-                    # zero out weights so they don't contribute to output
-                    child.weight *= relevant_mask
+                    if invert:
+                        # zero out weights so they don't contribute to output
+                        # zero out only when the mask is inverted
+                        child.weight *= relevant_mask
                     # zero out gradients at every backward() call so that
                     # weights don't get updated
                     child.weight.register_hook(_hook)
