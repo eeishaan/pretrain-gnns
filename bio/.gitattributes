@@ -1,3 +1,0 @@
-tmp/pruned_masking.pth filter=lfs diff=lfs merge=lfs -text
-bio/tmp/*.pth filter=lfs diff=lfs merge=lfs -text
-tmp/supervised_masking_0.25.pth filter=lfs diff=lfs merge=lfs -text
