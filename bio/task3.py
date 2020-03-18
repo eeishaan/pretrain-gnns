@@ -10,11 +10,11 @@ import torch.nn as nn
 import torch.optim as optim
 
 from model import GNN
-from util import MaskEdge
 from loader import BioDataset
 from dataloader import DataLoaderMasking
 from pretrain_masking import compute_accuracy
 from splitters import random_split,species_split
+from util import MaskEdge, load_model_for_pruning
 
 if DEBUG is True:
     import multiprocessing
@@ -157,6 +157,8 @@ if __name__ == "__main__":
                         help='path where the linear checkpoint is saved')
     parser.add_argument('--linear_weights', type=str, default=None,
                         help="if specified, evaluates accuracy of models instead of finetuning")
+    parser.add_argument('--prune_mask', type=str, default=None,
+                        help='Path to PackNet Mask if any')
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -189,20 +191,24 @@ if __name__ == "__main__":
 
     del dataset
     
-    # Load the model weights
     model = GNN(args.num_layer,
-                args.emb_dim,
-                JK=args.JK,
-                drop_ratio=args.dropout_ratio,
-                gnn_type=args.gnn_type).to(device)
+                    args.emb_dim,
+                    JK=args.JK,
+                    drop_ratio=args.dropout_ratio,
+                    gnn_type=args.gnn_type).to(device)
 
-    model.load_state_dict(torch.load(args.weights, map_location=device))
+    # Load the model weights
+    if args.prune_mask is None:
+        model.load_state_dict(torch.load(args.weights, map_location=device))
 
-    for p in model.parameters():
-        p.requires_grad=False
+    else:
+        load_model_for_pruning(model, args.weights, args.prune_mask, device)
 
     # Get the last layer, either through training or loading a checkpoint
     linear_pred_edges = torch.nn.Linear(args.emb_dim, 7).to(device)
+
+    for p in model.parameters():
+        p.requires_grad=False
 
     if args.linear_weights is None:
         print("Finetuning last layer using: {}".format(args.weights))
