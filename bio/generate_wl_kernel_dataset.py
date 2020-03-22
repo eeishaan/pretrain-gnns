@@ -51,7 +51,9 @@ def grakel_graph_format_transform(X):
     return edge_set, node_features, edge_features
 
 
-def generate_wl_kernel_dataset(num_workers=8, dataset_size=1000, data_type="unsupervised",
+def generate_wl_kernel_dataset(num_workers=8,
+                               dataset_size=-1,
+                               data_type="unsupervised",
                                base_dataset_path="./dataset"):
     torch.manual_seed(0)
     np.random.seed(0)
