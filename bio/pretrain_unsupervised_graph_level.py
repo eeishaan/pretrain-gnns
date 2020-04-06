@@ -1,3 +1,7 @@
+import wandb
+
+wandb.init(project="pretrain-gnn", entity="lap1n")
+
 import os
 
 import fire
@@ -59,11 +63,12 @@ def train_siamese_model(model, device, loader, graph_dataset, optimizer):
 
 
 def pretrain_unsupervised_graph_level(device=0,
+                                      pretrained_node_lvl_gnn_path="./model_gin/masking.pth",
                                       batch_size=8,
                                       lr=0.001,
                                       decay=0,
                                       run_seed=0,
-                                      num_epochs=1,
+                                      num_epochs=5,
                                       num_layer=5,
                                       emb_dim=300,
                                       JK="last",
@@ -72,7 +77,7 @@ def pretrain_unsupervised_graph_level(device=0,
                                       num_workers=8,
                                       data_type="unsupervised",
                                       base_dataset_path="./dataset",
-                                      filename="unsupervised_graph_lvl"):
+                                      output_filename="unsupervised_graph_lvl.pth"):
     torch.manual_seed(run_seed)
     np.random.seed(run_seed)
     device = torch.device("cuda:" + str(device)) if torch.cuda.is_available() else torch.device("cpu")
@@ -88,23 +93,24 @@ def pretrain_unsupervised_graph_level(device=0,
                                            batch_size=batch_size)  # create your dataloader
     dataset_root_path = os.path.join(base_dataset_path, data_type)
     graph_dataset = BioDataset(dataset_root_path, data_type=data_type)
-    # graph_dataset_dataloader = data.DataLoader(graph_dataset, num_workers=num_workers,
-    #                                            batch_size=batch_size)  # create your dataloader
-    # graph_dataset = graph_dataset[0:1000]
 
     model = SiameseModel(num_layer, emb_dim, JK=JK, drop_ratio=dropout_ratio, gnn_type=gnn_type)
+    if not pretrained_node_lvl_gnn_path == "":
+        pretrain_model_state_dict = torch.load(pretrained_node_lvl_gnn_path, map_location='cuda:0')
+        model.model.load_state_dict(pretrain_model_state_dict)
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=decay)
 
     for epoch in range(1, num_epochs + 1):
         print("====epoch " + str(epoch))
         train_loss = train_siamese_model(model, device, wl_kernel_dataloader, graph_dataset, optimizer)
-        print(train_loss)
+        wandb.log({"train_loss": train_loss}, step=epoch)
+
     os.makedirs("result/unsupervised_graph_lvl_seed" + str(run_seed), exist_ok=True)
 
-    if not filename == "":
-        with open("result/unsupervised_graph_lvl_seed" + str(run_seed) + "/" + filename, 'wb') as f:
-            pickle.dump({"model": model}, f)
+    if not output_filename == "":
+        with open("result/unsupervised_graph_lvl_seed" + str(run_seed) + "/" + output_filename, 'wb') as f:
+            torch.save(model.model.state_dict(), f)
 
 
 if __name__ == "__main__":
