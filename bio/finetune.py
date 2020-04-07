@@ -14,7 +14,7 @@ import numpy as np
 
 from model import GNN, GNN_graphpred
 from sklearn.metrics import roc_auc_score
-
+from util import load_model_for_pruning
 import pandas as pd
 
 import os
@@ -95,6 +95,9 @@ def main():
     parser.add_argument('--num_workers', type=int, default = 0, help='number of workers for dataset loading')
     parser.add_argument('--eval_train', type=int, default = 0, help='evaluating training or not')
     parser.add_argument('--split', type=str, default = "species", help='Random or species split')
+    parser.add_argument('--prune_mask', type=str, default=None,
+                            help='Prune mask file path to freeze weight of the loaded model.')
+
     args = parser.parse_args()
 
     torch.manual_seed(args.runseed)
@@ -136,12 +139,16 @@ def main():
     print(train_dataset[0])
 
     #set up model
-    model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK = args.JK, drop_ratio = args.dropout_ratio, graph_pooling = args.graph_pooling, gnn_type = args.gnn_type)
+    model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK=args.JK,
+                          drop_ratio=args.dropout_ratio, graph_pooling=args.graph_pooling, gnn_type=args.gnn_type).to(device)
 
     if not args.model_file == "":
-        model.from_pretrained(args.model_file)
+        if args.prune_mask:
+            load_model_for_pruning(model.gnn, args.model_file,
+                                args.prune_mask, device, invert=False)
+        else:
+            model.from_pretrained(args.model_file)
     
-    model.to(device)
 
     #set up optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay)
