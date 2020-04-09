@@ -14,7 +14,7 @@ from loader import BioDataset
 from dataloader import DataLoaderMasking
 from pretrain_masking import compute_accuracy
 from splitters import random_split,species_split
-from util import MaskEdge, load_model_for_pruning
+from util import MaskEdge
 
 if DEBUG is True:
     import multiprocessing
@@ -103,9 +103,9 @@ def eval_accuracy(model, linear, test_loader, device):
     model.eval()
     linear.eval()
 
-    acc_accum = 0
+    accs = []
 
-    for step, batch in enumerate(tqdm(test_loader, desc="Iteration")):
+    for _, batch in enumerate(tqdm(test_loader, desc="Iteration")):
         batch = batch.to(device)
 
         node_rep = model(batch.x, batch.edge_index, batch.edge_attr)
@@ -119,9 +119,10 @@ def eval_accuracy(model, linear, test_loader, device):
         edge_label = torch.argmax(batch.mask_edge_label, dim = 1)
 
         acc_edge = compute_accuracy(pred_edge, edge_label)
-        acc_accum += acc_edge
 
-    return acc_accum/(step + 1)
+        accs.append(acc_edge)
+
+    return np.mean(accs), np.std(accs)
 
 
 if __name__ == "__main__":
@@ -157,8 +158,6 @@ if __name__ == "__main__":
                         help='path where the linear checkpoint is saved')
     parser.add_argument('--linear_weights', type=str, default=None,
                         help="if specified, evaluates accuracy of models instead of finetuning")
-    parser.add_argument('--prune_mask', type=str, default=None,
-                        help='Path to PackNet Mask if any')
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -198,11 +197,7 @@ if __name__ == "__main__":
                     gnn_type=args.gnn_type).to(device)
 
     # Load the model weights
-    if args.prune_mask is None:
-        model.load_state_dict(torch.load(args.weights, map_location=device))
-
-    else:
-        load_model_for_pruning(model, args.weights, args.prune_mask, device)
+    model.load_state_dict(torch.load(args.weights, map_location=device))
 
     # Get the last layer, either through training or loading a checkpoint
     linear_pred_edges = torch.nn.Linear(args.emb_dim, 7).to(device)
@@ -247,10 +242,10 @@ if __name__ == "__main__":
                                     args.savepath)
 
         print("Final loss:", loss)
+        print("Final acc:", acc)
     
     elif os.path.exists(args.linear_weights) is False:
         print("Incorrect linear checkpoint path")
-        acc = "invalid"
     
     else:
         print("Evaluating model: {} \nUsing last layer: {}".format(args.weights, args.linear_weights))
@@ -260,10 +255,10 @@ if __name__ == "__main__":
                                     num_workers=args.num_workers)
 
         linear_pred_edges.load_state_dict(torch.load(args.linear_weights, map_location=device))
-        acc = eval_accuracy(model,
-                            linear_pred_edges,
-                            test_loader,
-                            device)
+        acc, std = eval_accuracy(model,
+                                linear_pred_edges,
+                                test_loader,
+                                device)
 
-    print("Final acc:", acc)
+        print("Final acc: {} - Final std: {}".format(acc, std))   
     
