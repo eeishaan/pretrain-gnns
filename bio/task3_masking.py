@@ -45,9 +45,6 @@ def finetune_emb(model, emb, optimizer, criterion, train_loader, valid_loader,
         #converting the binary classification to multiclass classification
         edge_label = torch.argmax(batch.mask_edge_label, dim = 1)
 
-        acc_edge = compute_accuracy(pred_edge, edge_label)
-        acc_accum += acc_edge
-
         optimizer.zero_grad()
 
         loss = criterion(pred_edge, edge_label)
@@ -90,7 +87,7 @@ def finetune_emb(model, emb, optimizer, criterion, train_loader, valid_loader,
 
                 if best_loss > valid_loss_accum:
                     best_loss = valid_loss_accum
-                    best_acc = valid_loss_accum
+                    best_acc = valid_acc_accum
                     torch.save(emb.state_dict(), savepath)
 
     return best_loss/valid_steps, best_acc/valid_steps

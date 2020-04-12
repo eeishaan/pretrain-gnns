@@ -120,7 +120,7 @@ def finetune_emb(model, emb, optimizer, criterion, train_loader, valid_loader,
 
                 if best_loss > valid_loss_accum:
                     best_loss = valid_loss_accum
-                    best_acc = valid_loss_accum
+                    best_acc = valid_acc_accum
                     torch.save(emb.state_dict(), savepath)
 
     return best_loss/valid_steps, best_acc/valid_steps
@@ -215,7 +215,7 @@ if __name__ == "__main__":
                          data_type='unsupervised',
                          transform= ExtractSubstructureContextPair(l1 = args.l1, center = args.center))
 
-    print(dataset[0])
+    print(dataset)
     print("l1: " + str(args.l1))
     print("center: " + str(args.center))
 
