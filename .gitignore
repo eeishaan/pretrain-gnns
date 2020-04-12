@@ -1,3 +1,4 @@
 bio/dataset/*
 .vscode
 __pycache__
+*.pth
