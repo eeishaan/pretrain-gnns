@@ -6,22 +6,25 @@ import pickle
 import pandas as pd
 import seaborn as sns
 
+#task = "masking"
+task = "contextpred"
+
 pth_node = [
-    'masking_0.25',
-    'masking_0.5',
-    'masking_0.75',
-    'masking_0.95',
-    'masking_0.99',
-    'masking',
+    task + '_0.25',
+    task + '_0.5',
+    task + '_0.75',
+    task + '_0.95',
+    task + '_0.99',
+    task,
 ]
 
 pth_graph = [
-    'supervised_masking_0.25',
-    'supervised_masking_0.5',
-    'supervised_masking_0.75',
-    'supervised_masking_0.95',
-    'supervised_masking_0.99',
-    'supervised_masking'
+    'supervised_' + task + '_0.25',
+    'supervised_' + task + '_0.5',
+    'supervised_' + task + '_0.75',
+    'supervised_' + task + '_0.95',
+    'supervised_' + task + '_0.99',
+    'supervised_' + task
 ]
 
 def gaussians(node=True):
@@ -121,7 +124,7 @@ def boxplots(df, labels, adjust, title):
 
 
 if __name__ == "__main__":
-    with open("results/masking_stats.pkl", "rb") as handle:
+    with open("results/" + task + "_stats.pkl", "rb") as handle:
         results = pickle.load(handle)
 
     data = pd.DataFrame(results)
