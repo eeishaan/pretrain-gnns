@@ -77,7 +77,7 @@ def pretrain_unsupervised_graph_level(device=0,
                                       num_workers=8,
                                       data_type="unsupervised",
                                       base_dataset_path="./dataset",
-                                      output_filename="unsupervised_graph_lvl.pth"):
+                                      output_filename="unsupervised_pretrain_graph_lvl_50_epoch.pth"):
     torch.manual_seed(run_seed)
     np.random.seed(run_seed)
     device = torch.device("cuda:" + str(device)) if torch.cuda.is_available() else torch.device("cpu")
