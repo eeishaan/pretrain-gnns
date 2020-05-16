@@ -1,68 +1,42 @@
-# Strategies for Pre-training Graph Neural Networks
+# Investigating and Improving Pre-training of GraphNeural Networks
+#### Authors: Ishaan Kumar, Philippe Lelièvre, Saber Benchalel
 
-This is a Pytorch implementation of the following paper: 
+The code of this project is based on the work from   [Hu et al.](https://github.com/snap-stanford/pretrain-gnns/).
 
-Weihua Hu*, Bowen Liu*, Joseph Gomes, Marinka Zitnik, Percy Liang, Vijay Pande, Jure Leskovec. Strategies for Pre-training Graph Neural Networks. ICLR 2020.
-[arXiv](https://arxiv.org/abs/1905.12265) [OpenReview](https://openreview.net/forum?id=HJlWWJSFDH) 
+All the code for the new experiments is located in the folder [bio](./bio).  The code from the folder chem remains unchanged.
 
-If you make use of the code/experiment in your work, please cite our paper (Bibtex below).
 
+#### Graph-level self-supervised training of 2nd stage
 ```
-@inproceedings{
-hu2020pretraining,
-title={Strategies for Pre-training Graph Neural Networks},
-author={Weihua Hu, Bowen Liu, Joseph Gomes, Marinka Zitnik, Percy Liang, Vijay Pande, Jure Leskovec},
-booktitle={International Conference on Learning Representations},
-year={2020},
-url={https://openreview.net/forum?id=HJlWWJSFDH},
-}
+python generate_wl_kernel_dataset.py # to generate WL kernel labels
+python pretrain_unsupervised_graph_level.py --pretrained_node_lvl_gnn_path PATH_TO_THE_N0DE_LEVEL_PRETRAIN_MODEL --output_filename OUTPUT_FILE_NAME
+python pretrain_infograph.py --pretrained_node_lvl_gnn_path PATH_TO_THE_N0DE_LEVEL_PRETRAIN_MODEL
 ```
-
-## Installation
-We used the following Python packages for core development. We tested on `Python 3.7`.
+#### Evaluate performance of pre-trained network on node-level tasks
 ```
-pytorch                   1.0.1
-torch-cluster             1.2.4              
-torch-geometric           1.0.3
-torch-scatter             1.1.2 
-torch-sparse              0.2.4
-torch-spline-conv         1.0.6
-rdkit                     2019.03.1.0
+python task3.py --weights WEIGHTS_PATH --savepath MODEL_OUTPUT_PATH 
+python task3.py --weights WEIGHTS_PATH --savepath MODEL_OUTPUT_PATH --prune_mask PATH_TO_PACK_NET_MASK # with packnet
 ```
-
-## Dataset download
-All the necessary data files can be downloaded from the following links.
-
-For the chemistry dataset, download from [chem data](http://snap.stanford.edu/gnn-pretrain/data/chem_dataset.zip) (2.5GB), unzip it, and put it under `chem/`.
-For the biology dataset, download from [bio data](http://snap.stanford.edu/gnn-pretrain/data/bio_dataset.zip) (2GB), unzip it, and put it under `bio/`.
-
-## Pre-training and fine-tuning
-In each directory, we have three kinds of files used to train GNNs.
-
-#### 1. Self-supervised pre-training
+#### Implement PackNet and generate numbers for different thresholds
 ```
-python pretrain_contextpred.py --output_model_file OUTPUT_MODEL_PATH
-python pretrain_masking.py --output_model_file OUTPUT_MODEL_PATH
-python pretrain_edgepred.py --output_model_file OUTPUT_MODEL_PATH
-python pretrain_deepgraphinfomax.py --output_model_file OUTPUT_MODEL_PATH
-```
-This will save the resulting pre-trained model to `OUTPUT_MODEL_PATH`.
+python packnet.py model_gin/masking.pth tmp/masking_$prune_ratio.mask $prune_ratio
 
-#### 2. Supervised pre-training
-```
-python pretrain_supervised.py --output_model_file OUTPUT_MODEL_PATH --input_model_file INPUT_MODEL_PATH
-```
-This will load the pre-trained model in `INPUT_MODEL_PATH`, further pre-train it using supervised pre-training, and then save the resulting pre-trained model to `OUTPUT_MODEL_PATH`.
+python pretrain_masking.py \
+    --num_workers 4 \
+    --saved_model OUTPUT_MODEL_PATH\
+    --prune_mask PATH_TO_PACK_NET_MASK\
+    --model_file tmp/masking_$prune_ratio &> OUTPUT_LOG_PATH
 
-#### 3. Fine-tuning
+python pretrain_supervised.py \
+    --input_model_file INPUT_MODEL_PATH \
+    --output_model_file OUTPUT_MODEL_PATH \
+    --prune_mask PATH_TO_PACK_NET_MASK &> OUTPUT_LOG_PATH
+
+python finetune.py \
+    --model_file INPUT_MODEL_PATH \
+    --split SPLIT_RATIO \
+    --filename OUTPUT_MODEL_PATH \
+    --epochs NUM_EPOCH \
+    --eval_train 1 &> OUTPUT_LOG_PATH
 ```
-python finetune.py --model_file INPUT_MODEL_PATH --dataset DOWNSTREAM_DATASET --filename OUTPUT_FILE_PATH
-```
-This will finetune pre-trained model specified in `INPUT_MODEL_PATH` using dataset `DOWNSTREAM_DATASET.` The result of fine-tuning will be saved to `OUTPUT_FILE_PATH.`
-
-## Saved pre-trained models
-We release pre-trained models in `model_gin/` and `model_architecture/` for both biology (`bio/`) and chemistry (`chem/`) applications. Feel free to take the models and use them in your applications!
-
-## Reproducing results in the paper
-Our results in the paper can be reproduced by running `sh finetune_tune.sh SEED DEVICE`, where `SEED` is a random seed ranging from 0 to 9, and `DEVICE` specifies the GPU ID to run the script. This script will finetune our saved pre-trained models on each downstream dataset.
-
+## Original Readme from Hu et al. [here](./original_README.md).
