@@ -199,20 +199,13 @@ def main():
         if args.split == "random":
             test_acc = eval(args, model, device, test_loader)
             test_acc_list.append(test_acc)
-            # wandb.log({
-            #     'test_acc': test_acc,
-            # }, step=epoch)
         else:
             test_acc_easy = eval(args, model, device, test_easy_loader)
             test_acc_hard = eval(args, model, device, test_hard_loader)
             test_acc_easy_list.append(test_acc_easy)
             test_acc_hard_list.append(test_acc_hard)
-            print(test_acc_easy)
-            print(test_acc_hard)
-            # wandb.log({
-            #     'test_acc_easy': test_acc_easy,
-            #     'test_acc_hard': test_acc_hard,
-            # }, step=epoch)
+            print('Easy test acc ',test_acc_easy)
+            print('Hard test acc ',test_acc_hard)
 
         print("")
 

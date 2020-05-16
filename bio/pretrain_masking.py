@@ -1,7 +1,7 @@
 import argparse
 
 from loader import BioDataset
-from dataloader import DataLoaderMasking 
+from dataloader import DataLoaderMasking
 
 import torch
 import torch.nn as nn
@@ -15,16 +15,18 @@ from model import GNN, GNN_graphpred
 
 import pandas as pd
 
-from util import MaskEdge
+from util import MaskEdge, load_model_for_pruning
 
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 
 #criterion = nn.BCEWithLogitsLoss()
 criterion = nn.CrossEntropyLoss()
 
+
 def compute_accuracy(pred, target):
-    #return float(torch.sum((pred.detach() > 0) == target.to(torch.uint8)).cpu().item())/(pred.shape[0]*pred.shape[1])
-    return float(torch.sum(torch.max(pred.detach(), dim = 1)[1] == target).cpu().item())/len(pred)
+    # return float(torch.sum((pred.detach() > 0) == target.to(torch.uint8)).cpu().item())/(pred.shape[0]*pred.shape[1])
+    return float(torch.sum(torch.max(pred.detach(), dim=1)[1] == target).cpu().item())/len(pred)
+
 
 def train(args, model_list, loader, optimizer_list, device):
     model, linear_pred_edges = model_list
@@ -41,13 +43,14 @@ def train(args, model_list, loader, optimizer_list, device):
 
         node_rep = model(batch.x, batch.edge_index, batch.edge_attr)
 
-        ### predict the edge types.
+        # predict the edge types.
         masked_edge_index = batch.edge_index[:, batch.masked_edge_idx]
-        edge_rep = node_rep[masked_edge_index[0]] + node_rep[masked_edge_index[1]]
+        edge_rep = node_rep[masked_edge_index[0]] + \
+            node_rep[masked_edge_index[1]]
         pred_edge = linear_pred_edges(edge_rep)
 
-        #converting the binary classification to multiclass classification
-        edge_label = torch.argmax(batch.mask_edge_label, dim = 1)
+        # converting the binary classification to multiclass classification
+        edge_label = torch.argmax(batch.mask_edge_label, dim=1)
 
         acc_edge = compute_accuracy(pred_edge, edge_label)
         acc_accum += acc_edge
@@ -65,9 +68,11 @@ def train(args, model_list, loader, optimizer_list, device):
 
     return loss_accum/(step + 1), acc_accum/(step + 1)
 
+
 def main():
     # Training settings
-    parser = argparse.ArgumentParser(description='PyTorch implementation of pre-training of graph neural networks')
+    parser = argparse.ArgumentParser(
+        description='PyTorch implementation of pre-training of graph neural networks')
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--batch_size', type=int, default=256,
@@ -89,45 +94,69 @@ def main():
     parser.add_argument('--JK', type=str, default="last",
                         help='how the node features are combined across layers. last, sum, max or concat')
     parser.add_argument('--gnn_type', type=str, default="gin")
-    parser.add_argument('--model_file', type=str, default = '', help='filename to output the model')
-    parser.add_argument('--seed', type=int, default=0, help = "Seed for splitting dataset.")
-    parser.add_argument('--num_workers', type=int, default = 8, help='number of workers for dataset loading')
+    parser.add_argument('--model_file', type=str, default='',
+                        help='filename to output the model')
+    parser.add_argument('--seed', type=int, default=0,
+                        help="Seed for splitting dataset.")
+    parser.add_argument('--num_workers', type=int, default=8,
+                        help='number of workers for dataset loading')
+    parser.add_argument('--prune_mask', type=str, default=None,
+                        help='Prune mask file path to freeze weight of the loaded model. This will also half the number of epochs.')
+    parser.add_argument('--saved_model', type=str, default=None,
+                        help='File path of the model that needs to be retrained after pruning.')
     args = parser.parse_args()
 
     torch.manual_seed(0)
     np.random.seed(0)
-    device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda:" + str(args.device)
+                          ) if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
-    print("num layer: %d mask rate: %f" %(args.num_layer, args.mask_rate))
+    print("num layer: %d mask rate: %f" % (args.num_layer, args.mask_rate))
 
-    #set up dataset
+    # set up dataset
     root_unsupervised = 'dataset/unsupervised'
-    dataset = BioDataset(root_unsupervised, data_type='unsupervised', transform = MaskEdge(mask_rate = args.mask_rate))
+    dataset = BioDataset(root_unsupervised, data_type='unsupervised',
+                         transform=MaskEdge(mask_rate=args.mask_rate))
 
     print(dataset)
 
-    loader = DataLoaderMasking(dataset, batch_size=args.batch_size, shuffle=True, num_workers = args.num_workers)
+    loader = DataLoaderMasking(
+        dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
+    # set up models, one for pre-training and one for context embeddings
+    model = GNN(args.num_layer, args.emb_dim, JK=args.JK,
+                drop_ratio=args.dropout_ratio, gnn_type=args.gnn_type).to(device)
 
-    #set up models, one for pre-training and one for context embeddings
-    model = GNN(args.num_layer, args.emb_dim, JK = args.JK, drop_ratio = args.dropout_ratio, gnn_type = args.gnn_type).to(device)
-    #Linear layer for classifying different edge types
+    # load the saved model
+    if args.saved_model:
+        if not args.prune_mask:
+            raise Exception(
+                'Gotta specify the prune mask for re-trainig saved model!!')
+        load_model_for_pruning(model, args.saved_model,
+                               args.prune_mask, device)
+        # in line with packnet reduce the re-training epochs
+        args.epochs //= 2
+
+    # Linear layer for classifying different edge types
     linear_pred_edges = torch.nn.Linear(args.emb_dim, 7).to(device)
 
     model_list = [model, linear_pred_edges]
 
-    #set up optimizers
-    optimizer_model = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay)
-    optimizer_linear_pred_edges = optim.Adam(linear_pred_edges.parameters(), lr=args.lr, weight_decay=args.decay)
+    # set up optimizers
+    optimizer_model = optim.Adam(
+        model.parameters(), lr=args.lr, weight_decay=args.decay)
+    optimizer_linear_pred_edges = optim.Adam(
+        linear_pred_edges.parameters(), lr=args.lr, weight_decay=args.decay)
 
     optimizer_list = [optimizer_model, optimizer_linear_pred_edges]
 
     for epoch in range(1, args.epochs+1):
         print("====epoch " + str(epoch))
-        
-        train_loss, train_acc = train(args, model_list, loader, optimizer_list, device)
+
+        train_loss, train_acc = train(
+            args, model_list, loader, optimizer_list, device)
         print(train_loss, train_acc)
 
     if not args.model_file == "":

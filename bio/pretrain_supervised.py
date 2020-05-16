@@ -1,25 +1,22 @@
 import argparse
 
-from splitters import random_split, species_split
-from loader import BioDataset
-from torch_geometric.data import DataLoader
-
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
-from tqdm import tqdm
-import numpy as np
-
-from model import GNN, GNN_graphpred
 from sklearn.metrics import roc_auc_score
+from torch_geometric.data import DataLoader
+from tqdm import tqdm
 
-import pandas as pd
-
-from util import combine_dataset
+from loader import BioDataset
+from model import GNN, GNN_graphpred
+from splitters import random_split, species_split
+from util import combine_dataset, load_model_for_pruning
 
 criterion = nn.BCEWithLogitsLoss()
+
 
 def train(args, model, device, loader, optimizer):
     model.train()
@@ -43,7 +40,8 @@ def train(args, model, device, loader, optimizer):
 
 def main():
     # Training settings
-    parser = argparse.ArgumentParser(description='PyTorch implementation of pre-training of graph neural networks')
+    parser = argparse.ArgumentParser(
+        description='PyTorch implementation of pre-training of graph neural networks')
     parser.add_argument('--device', type=int, default=0,
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--batch_size', type=int, default=32,
@@ -64,18 +62,26 @@ def main():
                         help='graph level pooling (sum, mean, max, set2set, attention)')
     parser.add_argument('--JK', type=str, default="last",
                         help='how the node features across layers are combined. last, sum, max or concat')
-    parser.add_argument('--input_model_file', type=str, default = '', help='filename to read the model (if there is any)')
-    parser.add_argument('--output_model_file', type = str, default = '', help='filename to output the pre-trained model')
+    parser.add_argument('--input_model_file', type=str, default='',
+                        help='filename to read the model (if there is any)')
+    parser.add_argument('--output_model_file', type=str, default='',
+                        help='filename to output the pre-trained model')
     parser.add_argument('--gnn_type', type=str, default="gin")
-    parser.add_argument('--num_workers', type=int, default = 0, help='number of workers for dataset loading')
-    parser.add_argument('--seed', type=int, default=42, help = "Seed for splitting dataset.")
-    parser.add_argument('--split', type=str, default = "species", help='Random or species split')
-    args = parser.parse_args()
+    parser.add_argument('--num_workers', type=int, default=0,
+                        help='number of workers for dataset loading')
+    parser.add_argument('--seed', type=int, default=42,
+                        help="Seed for splitting dataset.")
+    parser.add_argument('--split', type=str, default="species",
+                        help='Random or species split')
+    parser.add_argument('--prune_mask', type=str, default=None,
+                        help='Prune mask file path to freeze weight of the loaded model.')
 
+    args = parser.parse_args()
 
     torch.manual_seed(0)
     np.random.seed(0)
-    device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda:" + str(args.device)
+                          ) if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(0)
 
@@ -85,7 +91,8 @@ def main():
 
     if args.split == "random":
         print("random splitting")
-        train_dataset, valid_dataset, test_dataset = random_split(dataset, seed = args.seed)
+        train_dataset, valid_dataset, test_dataset = random_split(
+            dataset, seed=args.seed)
         print(train_dataset)
         print(valid_dataset)
         pretrain_dataset = combine_dataset(train_dataset, valid_dataset)
@@ -93,39 +100,45 @@ def main():
     elif args.split == "species":
         print("species splitting")
         trainval_dataset, test_dataset = species_split(dataset)
-        test_dataset_broad, test_dataset_none, _ = random_split(test_dataset, seed = args.seed, frac_train=0.5, frac_valid=0.5, frac_test=0)
+        test_dataset_broad, test_dataset_none, _ = random_split(
+            test_dataset, seed=args.seed, frac_train=0.5, frac_valid=0.5, frac_test=0)
         print(trainval_dataset)
         print(test_dataset_broad)
-        pretrain_dataset = combine_dataset(trainval_dataset, test_dataset_broad)            
+        pretrain_dataset = combine_dataset(
+            trainval_dataset, test_dataset_broad)
         print(pretrain_dataset)
         #train_dataset, valid_dataset, _ = random_split(trainval_dataset, seed = args.seed, frac_train=0.85, frac_valid=0.15, frac_test=0)
     else:
         raise ValueError("Unknown split name.")
 
-
-    train_loader = DataLoader(pretrain_dataset, batch_size=args.batch_size, shuffle=True, num_workers = args.num_workers)
+    train_loader = DataLoader(
+        pretrain_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     num_tasks = len(pretrain_dataset[0].go_target_pretrain)
 
-    #set up model
-    model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK = args.JK, drop_ratio = args.dropout_ratio, graph_pooling = args.graph_pooling, gnn_type = args.gnn_type)
+    # set up model
+    model = GNN_graphpred(args.num_layer, args.emb_dim, num_tasks, JK=args.JK,
+                          drop_ratio=args.dropout_ratio, graph_pooling=args.graph_pooling, gnn_type=args.gnn_type).to(device)
     if not args.input_model_file == "":
-        model.from_pretrained(args.input_model_file + ".pth")
-    
-    model.to(device)
+        model_file = args.input_model_file + ".pth"
+        if args.prune_mask:
+            load_model_for_pruning(model.gnn, model_file,
+                                   args.prune_mask, device, invert=False)
+        else:
+            model.from_pretrained(model_file)
 
-    #set up optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.decay)   
+    # set up optimizer
+    optimizer = optim.Adam(model.parameters(), lr=args.lr,
+                           weight_decay=args.decay)
     print(optimizer)
 
     for epoch in range(1, args.epochs+1):
         print("====epoch " + str(epoch))
-    
+
         train_loss = train(args, model, device, train_loader, optimizer)
 
     if not args.output_model_file == "":
         torch.save(model.gnn.state_dict(), args.output_model_file + ".pth")
-
 
 
 if __name__ == "__main__":
